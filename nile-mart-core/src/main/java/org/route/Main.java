@@ -20,6 +20,15 @@ public class Main {
                 throw new AssertionError("Shipping quote check failed.");
             }
             System.out.println("Shipping checks passed.");
+
+            Customer customer = new Customer("Mona", "01012345678", "mona@example.com");
+            Customer customerWithoutEmail = new Customer("Ali", "01098765432", null);
+            context.getBeansOfType(NotificationSender.class)
+                    .values()
+                    .forEach(sender -> sender.send(customer, "Test order confirmation"));
+            context.getBean(EmailNotificationSender.class)
+                    .send(customerWithoutEmail, "This should not print");
+            System.out.println("Notification checks passed (no email line should follow for Ali).");
         }
     }
 }
