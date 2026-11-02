@@ -3,120 +3,127 @@ package org.route;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Scanner;
 
 public class Main {
+
     public static void main(String[] args) {
-        try (var context = new AnnotationConfigApplicationContext(AppConfig.class)) {
-            ShippingQuoteService shipping = context.getBean(ShippingQuoteService.class);
+        try (var context = new AnnotationConfigApplicationContext(AppConfig.class);
+             var in = new Scanner(System.in)) {
 
-            BigDecimal aswan = shipping.quote(Governorate.ASWAN, new BigDecimal("16000.00"));
-            BigDecimal southSinai = shipping.quote(Governorate.SOUTH_SINAI, new BigDecimal("16000.00"));
-
-            System.out.println("ASWAN: " + aswan);
-            System.out.println("SOUTH_SINAI: " + southSinai);
-
-            if (aswan.compareTo(BigDecimal.ZERO) != 0
-                    || southSinai.compareTo(new BigDecimal("120.00")) != 0) {
-                throw new AssertionError("Shipping quote check failed.");
-            }
-            System.out.println("Shipping checks passed.");
-
-            Customer customer = new Customer("Mona", "01012345678", "mona@example.com");
-            Customer customerWithoutEmail = new Customer("Ali", "01098765432", null);
-            context.getBeansOfType(NotificationSender.class)
-                    .values()
-                    .forEach(sender -> sender.send(customer, "Test order confirmation"));
-            context.getBean(EmailNotificationSender.class)
-                    .send(customerWithoutEmail, "This should not print");
-            System.out.println("Notification checks passed (no email line should follow for Ali).");
-
-            ShoppingCart cart = context.getBean(ShoppingCart.class);
-            expectCartFailure(cart, "BTY-SUN-50", 1, "out of stock");
-            expectCartFailure(cart, "HOM-PAN-28", 4, "Only 3 available");
-            if (!cart.isEmpty()) {
-                throw new AssertionError("Failed additions should not change the cart.");
-            }
-            System.out.println("Cart stock checks passed.");
-
-            ProductService products = context.getBean(ProductService.class);
+            ProductService productService = context.getBean(ProductService.class);
             CheckoutService checkout = context.getBean(CheckoutService.class);
-            OrderRegistry orders = context.getBean(OrderRegistry.class);
+            Map<Integer, ShoppingCart> carts = new LinkedHashMap<>();
+            int nextCartNumber = 1;
 
-            ShoppingCart emptyCart = context.getBean(ShoppingCart.class);
-            emptyCart.setCustomer(new Customer("Empty Cart", "01000000000", null));
-            expectCheckoutFailure(checkout, emptyCart, Governorate.GIZA, "Cart is empty.");
-            if (!orders.findAll().isEmpty()) {
-                throw new AssertionError("An empty cart must not create an order.");
-            }
+            while (true) {
+                System.out.println("""
+                        ========== NILEMART ============
+                        1. Show products
+                        2. Create a cart
+                        3. Add a product to a cart
+                        4. Show a cart
+                        5. Check out a cart
+                        0. Exit""");
+                System.out.print("> ");
+                if (!in.hasNextLine()) break;
+                String choice = in.nextLine().trim();
+                if (choice.equals("0")) break;
 
-            ShoppingCart checkoutCart = context.getBean(ShoppingCart.class);
-            checkoutCart.setCustomer(customer);
-            checkoutCart.addItem("ACC-CHG-20W", 2);
-            checkoutCart.addItem("FSH-GAL-001", 1);
-
-            int chargerStockBefore = products.findBySku("ACC-CHG-20W").getStockQuantity();
-            int galabeyaStockBefore = products.findBySku("FSH-GAL-001").getStockQuantity();
-            Order order = checkout.placeOrder(checkoutCart, Governorate.GIZA);
-
-            assertMoney("subtotal", order.subtotal(), "1980.00");
-            assertMoney("VAT", order.vat(), "277.20");
-            assertMoney("shipping", order.shippingFee(), "50.00");
-            assertMoney("total", order.total(), "2307.20");
-            if (!order.orderNumber().matches("NM-\\d{8}-00001")) {
-                throw new AssertionError("Unexpected order number: " + order.orderNumber());
+                try {
+                    switch (choice) {
+                        case "1" -> showProducts(productService);
+                        case "2" -> {
+                            String name = ask(in, "Customer name: ");
+                            String phone = ask(in, "Phone: ");
+                            String email = ask(in, "Email (optional): ");
+                            ShoppingCart cart = context.getBean(ShoppingCart.class);
+                            cart.setCartNumber(nextCartNumber++);
+                            cart.setCustomer(new Customer(name, phone, email.isBlank() ? null : email));
+                            carts.put(cart.getCartNumber(), cart);
+                            System.out.println("Cart #" + cart.getCartNumber() + " created for " + name);
+                        }
+                        case "3" -> {
+                            ShoppingCart cart = findCart(carts, in);
+                            String sku = ask(in, "Product SKU: ");
+                            int qty = askInt(in, "Quantity: ");
+                            cart.addItem(sku, qty);
+                            System.out.println("Added. Cart #" + cart.getCartNumber() + " subtotal: "
+                                    + money(cart.subtotal()));
+                        }
+                        case "4" -> showCart(findCart(carts, in), productService);
+                        case "5" -> {
+                            ShoppingCart cart = findCart(carts, in);
+                            Governorate governorate = askGovernorate(in);
+                            Order order = checkout.placeOrder(cart, governorate);
+                            System.out.println("Order " + order.orderNumber() + " placed. Subtotal "
+                                    + money(order.subtotal()) + " | VAT " + money(order.vat())
+                                    + " | Shipping " + money(order.shippingFee())
+                                    + " | Total " + money(order.total()));
+                        }
+                        default -> System.out.println("Unknown option.");
+                    }
+                } catch (StoreException exception) {
+                    System.out.println("Error: " + exception.getMessage());
+                }
             }
-            if (products.findBySku("ACC-CHG-20W").getStockQuantity() != chargerStockBefore - 2
-                    || products.findBySku("FSH-GAL-001").getStockQuantity() != galabeyaStockBefore - 1) {
-                throw new AssertionError("Successful checkout did not reduce stock correctly.");
-            }
-            if (!checkoutCart.isEmpty() || orders.findAll().size() != 1) {
-                throw new AssertionError("Successful checkout should save one order and clear the cart.");
-            }
-
-            ShoppingCart staleCart = context.getBean(ShoppingCart.class);
-            staleCart.setCustomer(customer);
-            staleCart.addItem("HOM-PAN-28", 2);
-            products.reduceStock("HOM-PAN-28", 2);
-            int panStockBeforeFailedCheckout = products.findBySku("HOM-PAN-28").getStockQuantity();
-            expectCheckoutFailure(checkout, staleCart, Governorate.GIZA, "Not enough stock");
-            if (products.findBySku("HOM-PAN-28").getStockQuantity() != panStockBeforeFailedCheckout
-                    || staleCart.getLines().get("HOM-PAN-28") != 2
-                    || orders.findAll().size() != 1) {
-                throw new AssertionError("Failed checkout changed stock, cart, or saved orders.");
-            }
-            System.out.println("Checkout checks passed.");
         }
     }
 
-    private static void expectCartFailure(ShoppingCart cart, String sku, int qty, String expectedMessage) {
+    private static String money(BigDecimal value) {
+        return String.format(Locale.US, "%,.2f EGP", value);
+    }
+
+    private static String ask(Scanner in, String prompt) {
+        System.out.print(prompt);
+        return in.hasNextLine() ? in.nextLine().trim() : "";
+    }
+
+    private static int askInt(Scanner in, String prompt) {
         try {
-            cart.addItem(sku, qty);
-            throw new AssertionError("Expected adding " + sku + " to fail.");
-        } catch (StoreException exception) {
-            if (!exception.getMessage().contains(expectedMessage)) {
-                throw new AssertionError("Unexpected cart error: " + exception.getMessage(), exception);
-            }
-            System.out.println("Expected cart rejection: " + exception.getMessage());
+            return Integer.parseInt(ask(in, prompt));
+        } catch (NumberFormatException exception) {
+            throw new StoreException("Please enter a whole number.");
         }
     }
 
-    private static void expectCheckoutFailure(CheckoutService checkout, ShoppingCart cart,
-                                              Governorate governorate, String expectedMessage) {
-        try {
-            checkout.placeOrder(cart, governorate);
-            throw new AssertionError("Expected checkout to fail.");
-        } catch (StoreException exception) {
-            if (!exception.getMessage().contains(expectedMessage)) {
-                throw new AssertionError("Unexpected checkout error: " + exception.getMessage(), exception);
-            }
-            System.out.println("Expected checkout rejection: " + exception.getMessage());
+    private static ShoppingCart findCart(Map<Integer, ShoppingCart> carts, Scanner in) {
+        ShoppingCart cart = carts.get(askInt(in, "Cart number: "));
+        if (cart == null) throw new StoreException("Cart not found.");
+        return cart;
+    }
+
+    private static Governorate askGovernorate(Scanner in) {
+        Governorate[] all = Governorate.values();
+        for (int i = 0; i < all.length; i++) {
+            System.out.printf("%2d. %s%n", i + 1, all[i]);
+        }
+        int number = askInt(in, "Governorate number: ");
+        if (number < 1 || number > all.length) throw new StoreException("Invalid governorate.");
+        return all[number - 1];
+    }
+
+    private static void showProducts(ProductService service) {
+        System.out.printf("%-14s %-28s %-15s %12s %6s%n", "SKU", "Name", "Category", "Price", "Stock");
+        for (Product product : service.findAll()) {
+            System.out.printf(Locale.US, "%-14s %-28s %-15s %,12.2f %6d%n",
+                    product.getSku(), product.getName(), product.getCategory(),
+                    product.getPrice(), product.getStockQuantity());
         }
     }
 
-    private static void assertMoney(String label, BigDecimal actual, String expected) {
-        if (actual.compareTo(new BigDecimal(expected)) != 0) {
-            throw new AssertionError(label + " expected " + expected + " but was " + actual);
+    private static void showCart(ShoppingCart cart, ProductService service) {
+        System.out.println("Cart #" + cart.getCartNumber() + " - " + cart.getCustomer().fullName());
+        if (cart.isEmpty()) {
+            System.out.println("(empty)");
+            return;
         }
-        System.out.println(label + " verified: " + actual);
+        cart.getLines().forEach((sku, quantity) -> System.out.println(
+                "  " + quantity + " x " + service.findBySku(sku).getName()
+                        + " = " + money(service.getPrice(sku, quantity))));
+        System.out.println("Subtotal: " + money(cart.subtotal()));
     }
 }

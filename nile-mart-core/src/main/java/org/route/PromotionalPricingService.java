@@ -1,13 +1,11 @@
 package org.route;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
 @Component
-@Primary
 public class PromotionalPricingService implements PricingService{
 
     private final BigDecimal discountAmount;
