@@ -37,6 +37,54 @@ public class Main {
                 throw new AssertionError("Failed additions should not change the cart.");
             }
             System.out.println("Cart stock checks passed.");
+
+            ProductService products = context.getBean(ProductService.class);
+            CheckoutService checkout = context.getBean(CheckoutService.class);
+            OrderRegistry orders = context.getBean(OrderRegistry.class);
+
+            ShoppingCart emptyCart = context.getBean(ShoppingCart.class);
+            emptyCart.setCustomer(new Customer("Empty Cart", "01000000000", null));
+            expectCheckoutFailure(checkout, emptyCart, Governorate.GIZA, "Cart is empty.");
+            if (!orders.findAll().isEmpty()) {
+                throw new AssertionError("An empty cart must not create an order.");
+            }
+
+            ShoppingCart checkoutCart = context.getBean(ShoppingCart.class);
+            checkoutCart.setCustomer(customer);
+            checkoutCart.addItem("ACC-CHG-20W", 2);
+            checkoutCart.addItem("FSH-GAL-001", 1);
+
+            int chargerStockBefore = products.findBySku("ACC-CHG-20W").getStockQuantity();
+            int galabeyaStockBefore = products.findBySku("FSH-GAL-001").getStockQuantity();
+            Order order = checkout.placeOrder(checkoutCart, Governorate.GIZA);
+
+            assertMoney("subtotal", order.subtotal(), "1980.00");
+            assertMoney("VAT", order.vat(), "277.20");
+            assertMoney("shipping", order.shippingFee(), "50.00");
+            assertMoney("total", order.total(), "2307.20");
+            if (!order.orderNumber().matches("NM-\\d{8}-00001")) {
+                throw new AssertionError("Unexpected order number: " + order.orderNumber());
+            }
+            if (products.findBySku("ACC-CHG-20W").getStockQuantity() != chargerStockBefore - 2
+                    || products.findBySku("FSH-GAL-001").getStockQuantity() != galabeyaStockBefore - 1) {
+                throw new AssertionError("Successful checkout did not reduce stock correctly.");
+            }
+            if (!checkoutCart.isEmpty() || orders.findAll().size() != 1) {
+                throw new AssertionError("Successful checkout should save one order and clear the cart.");
+            }
+
+            ShoppingCart staleCart = context.getBean(ShoppingCart.class);
+            staleCart.setCustomer(customer);
+            staleCart.addItem("HOM-PAN-28", 2);
+            products.reduceStock("HOM-PAN-28", 2);
+            int panStockBeforeFailedCheckout = products.findBySku("HOM-PAN-28").getStockQuantity();
+            expectCheckoutFailure(checkout, staleCart, Governorate.GIZA, "Not enough stock");
+            if (products.findBySku("HOM-PAN-28").getStockQuantity() != panStockBeforeFailedCheckout
+                    || staleCart.getLines().get("HOM-PAN-28") != 2
+                    || orders.findAll().size() != 1) {
+                throw new AssertionError("Failed checkout changed stock, cart, or saved orders.");
+            }
+            System.out.println("Checkout checks passed.");
         }
     }
 
@@ -50,5 +98,25 @@ public class Main {
             }
             System.out.println("Expected cart rejection: " + exception.getMessage());
         }
+    }
+
+    private static void expectCheckoutFailure(CheckoutService checkout, ShoppingCart cart,
+                                              Governorate governorate, String expectedMessage) {
+        try {
+            checkout.placeOrder(cart, governorate);
+            throw new AssertionError("Expected checkout to fail.");
+        } catch (StoreException exception) {
+            if (!exception.getMessage().contains(expectedMessage)) {
+                throw new AssertionError("Unexpected checkout error: " + exception.getMessage(), exception);
+            }
+            System.out.println("Expected checkout rejection: " + exception.getMessage());
+        }
+    }
+
+    private static void assertMoney(String label, BigDecimal actual, String expected) {
+        if (actual.compareTo(new BigDecimal(expected)) != 0) {
+            throw new AssertionError(label + " expected " + expected + " but was " + actual);
+        }
+        System.out.println(label + " verified: " + actual);
     }
 }
