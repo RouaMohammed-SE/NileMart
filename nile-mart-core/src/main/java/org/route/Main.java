@@ -29,6 +29,26 @@ public class Main {
             context.getBean(EmailNotificationSender.class)
                     .send(customerWithoutEmail, "This should not print");
             System.out.println("Notification checks passed (no email line should follow for Ali).");
+
+            ShoppingCart cart = context.getBean(ShoppingCart.class);
+            expectCartFailure(cart, "BTY-SUN-50", 1, "out of stock");
+            expectCartFailure(cart, "HOM-PAN-28", 4, "Only 3 available");
+            if (!cart.isEmpty()) {
+                throw new AssertionError("Failed additions should not change the cart.");
+            }
+            System.out.println("Cart stock checks passed.");
+        }
+    }
+
+    private static void expectCartFailure(ShoppingCart cart, String sku, int qty, String expectedMessage) {
+        try {
+            cart.addItem(sku, qty);
+            throw new AssertionError("Expected adding " + sku + " to fail.");
+        } catch (StoreException exception) {
+            if (!exception.getMessage().contains(expectedMessage)) {
+                throw new AssertionError("Unexpected cart error: " + exception.getMessage(), exception);
+            }
+            System.out.println("Expected cart rejection: " + exception.getMessage());
         }
     }
 }
