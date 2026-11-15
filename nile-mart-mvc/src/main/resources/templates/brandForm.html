@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('New brand - Nile Mart')}"></head>
+<body>
+<nav th:replace="~{fragments :: menu}"></nav>
+
+<h1>New brand</h1>
+
+<form class="card" th:action="@{/brands}" th:object="${brand}" method="post">
+    <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" th:field="*{name}">
+        <span class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></span>
+    </div>
+    <div class="field">
+        <label for="slug">Slug</label>
+        <input type="text" id="slug" th:field="*{slug}" placeholder="nile-cotton">
+        <span class="error" th:if="${#fields.hasErrors('slug')}" th:errors="*{slug}"></span>
+    </div>
+    <div class="field">
+        <label><input type="checkbox" th:field="*{active}"> Active</label>
+    </div>
+    <button class="btn" type="submit">Save brand</button>
+</form>
+<p><a th:href="@{/brands}">Back to brands</a></p>
+</body>
+</html>

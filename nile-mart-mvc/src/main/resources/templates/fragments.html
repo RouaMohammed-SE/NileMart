@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <title th:text="${title}">Nile Mart</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }
+        h1 { color: #333; }
+        nav.menu { background: #333; padding: 12px 16px; margin: -40px -40px 30px -40px; }
+        nav.menu a { color: white; text-decoration: none; margin-right: 24px; font-weight: bold; }
+        nav.menu a:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #333; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .actions { margin: 16px 0; }
+        .btn { display: inline-block; padding: 8px 14px; background: #2b7a4b; color: white;
+               text-decoration: none; border: 0; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        form.card { background: white; padding: 20px; max-width: 480px; border: 1px solid #ddd; }
+        .field { margin-bottom: 14px; }
+        .field label { display: block; font-weight: bold; margin-bottom: 4px; }
+        .field input[type=text], .field select { width: 100%; padding: 8px; box-sizing: border-box; }
+        .error { color: #b00020; font-size: 13px; display: block; margin-top: 4px; }
+    </style>
+</head>
+<body>
+<nav class="menu" th:fragment="menu">
+    <a th:href="@{/products}">Products</a>
+    <a th:href="@{/categories}">Categories</a>
+    <a th:href="@{/brands}">Brands</a>
+</nav>
+</body>
+</html>

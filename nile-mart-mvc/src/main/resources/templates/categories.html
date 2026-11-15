@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Categories - Nile Mart')}"></head>
+<body>
+<nav th:replace="~{fragments :: menu}"></nav>
+
+<h1>Categories</h1>
+<div class="actions"><a class="btn" th:href="@{/categories/new}">Add category</a></div>
+
+<table>
+    <thead>
+    <tr><th>Name</th><th>Slug</th><th>Parent</th><th>Order</th><th>Active</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="row : ${rows}">
+        <td th:text="${row.name}"></td>
+        <td th:text="${row.slug}"></td>
+        <td th:text="${row.parentName}"></td>
+        <td th:text="${row.displayOrder}"></td>
+        <td th:text="${row.active} ? 'Yes' : 'No'"></td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>

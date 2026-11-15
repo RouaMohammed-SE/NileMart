@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Brands - Nile Mart')}"></head>
+<body>
+<nav th:replace="~{fragments :: menu}"></nav>
+
+<h1>Brands</h1>
+<div class="actions"><a class="btn" th:href="@{/brands/new}">Add brand</a></div>
+
+<table>
+    <thead>
+    <tr><th>Name</th><th>Slug</th><th>Active</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="brand : ${brands}">
+        <td th:text="${brand.name}"></td>
+        <td th:text="${brand.slug}"></td>
+        <td th:text="${brand.active} ? 'Yes' : 'No'"></td>
+    </tr>
+    </tbody>
+</table>
+</body>
+</html>
